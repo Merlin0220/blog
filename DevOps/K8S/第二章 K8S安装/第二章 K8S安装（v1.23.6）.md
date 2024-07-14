@@ -215,7 +215,7 @@ yum makecache
 6.更新最新源设置
 yum update -y
 ```
-### the kubelet version is higher than the control plane version.
+#### the kubelet version is higher than the control plane version.
 ![[Pasted image 20240713183326.png]]
 一般出现这个问题，基本上是kubelet和kubeadm版本不对应，可以使用下列命令查看版本：
 ```
@@ -229,7 +229,7 @@ yum install -y kubelet-1.23.6 kubeadm-1.23.6 kubectl-1.23.6 --disableexcludes=ku
 
 ```
 
-### Docker引擎问题
+#### Docker引擎问题
 ![[Pasted image 20240713184004.png]]
 还有一些其他的报错，基本上原因都是docker Driver为cgroupfs导致的，可以使用 docker info | grep Driver命令查看：
 ![[Pasted image 20240713185418.png]]
@@ -248,7 +248,7 @@ system restart kubelet
 kubeadm reset # 一定要执行这一步
 ```
 
-### 找不到Master的token该怎么办
+#### 找不到Master的token该怎么办
 kubeadm token list：列举当前token
 kubeadm token create：获取新token
 根据token获取sha256加密值：
@@ -256,7 +256,7 @@ kubeadm token create：获取新token
 openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
 ```
 ![[Pasted image 20240713201246.png]]之后根据token和sha256:<sha256值>拼接加入请求即可。
-### 拉取镜像失败
+#### 拉取镜像失败
 自己在搭建k8s集群的时候，calico相关的镜像一直拉取不下来，即使配置了阿里云proxy也没用。
 这时候可以使用“在自己电脑上手动下载镜像包”的方法，具体如下：
 1. 找到calico的GitHub官方地址，并找到对应版本（v3.25.0），在Assets中下载release包。该包为tgz后缀：https://github.com/projectcalico/calico/releases?page=2
