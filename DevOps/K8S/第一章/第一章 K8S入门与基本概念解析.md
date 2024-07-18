@@ -80,3 +80,55 @@ Pod底层存在一个pause容器，其他容器之前共享的资源实际上都
 ##### 副本数
 副本（repicas）指的是一个Pod可以被复制成多份，每一份都可以被称之为一个“副本”，这些副本除了一些描述的信息（Pod Name, uid等）不一样外，其他信息相同，提供一样的功能。
 副本数包含在Pod的“控制器”（Deployment）中，当集群中该Pod数量和副本数指定的不一致时，k8s会采取一些策略去满足副本数配置的要求。
+##### 控制器
+K8S是容器资源管理和调度平台，容器跑在Pod里，Pod是K8S里最小的单元。所以，这些Pod作为一个个单元我们肯定需要去**操作它的状态和生命周期**。那么如何操作？这里就需要用到控制器了。
+控制器分为四种：无状态服务控制器、有状态服务控制器、守护进程控制器以及任务控制器。
+###### 无状态服务（Nginx等）控制器
+* RC：ReplicationController，帮助我们动态更新Pod副本数。与Pod深度绑定，目前已经废弃。
+* RS：ReplicaSet，与RC做的事情相同，但可以通过**Selector**选择对哪些Pod生效。但只支持扩容和缩容功能。
+* Deployment：最常用的无状态服务控制器，对RS做了进一步封装。Deployment提供以下功能：
+	* 创建 ReplicaSet / Pod：Deployment底层对Pod的扩容缩容还是通过RS实现的，因此Deployment提供了自动创建ReplicaSet和Pod的功能。
+	* 滚动升级/回滚：类似于灰度发布，当Pod进行升级后，Deployment会自动将Pod及其副本一个个进行升级，每次升级会自动新建一个Pod和对应的RS，同时原先的Pod和RS不会被删除，用于回滚。
+	* 平滑扩容和缩容。
+	* 暂停与回复：当一段时间内有多次升级时，我们不希望每次修改Deployment都自动进行滚动升级，因此可以暂停Deployment的功能，并在修改好之后进行恢复。
+![[Pasted image 20240717224406.png]]
+###### 有状态服务（Redis等）控制器
+StatefulSet专门用于有状态服务，在k8s v1.5版本以上支持。该控制器提供以下功能：
+* 稳定的持久化存储，不会因Pod的删除而删除。
+* 稳定的网络标志。
+* 有序部署，有序扩展：即Pod是有顺序的（从0到N-1），在部署或者扩展时，之前的Pod必须都是Running或Ready状态，基于init contrainers实现。
+* 有序收缩，有序删除。
+StatefulSet由两部分组成：Headless Service（DNS服务）和VolumeClaimTemplate（存储卷服务），分别对应了网络管理和存储管理。其中Headless Service需要在StatefulSet之前创建好。
+StatefulSet中每个Pod的DNS格式为{statefulSetName}-{0...N-1}.{serviceName}.{namespace}.svc.cluster.local
+* serviceName为Headless Service的名字。
+* 0...N-1为Pod的序号。
+* namespace为服务所在的namespace名，Headless Service和StatefulSet必须在相同的namespace
+![[Pasted image 20240717233107.png]]
+###### 守护进程控制器
+为匹配上的Node都生成一个守护进程，常用来部署一些集群的日志、监控等应用。
+![[Pasted image 20240718001309.png]]
+###### 任务控制器
+Job：一次性任务，运行完成后Pod销毁，不再重新启动新容器。
+CronJob：在Job基础上加上了定时功能，由linux crontab实现。
+
+#### 服务发现
+k8s对于服务发现共有两种方案：Ingress和Service，分别解决了南北流量和东西流量的问题，具体架构如下所示：
+![[Pasted image 20240718233938.png]]
+举例：如下图所示由product服务和order服务，分别创建对应的Service，其中product服务的Service监听真实的28088端口并将请求转发到Pod的8088端口（即商品服务的虚拟端口），order服务的Service监听28099端口并将请求转发到Pod的8099端口。
+如果product服务和order服务想要互相访问，直接使用serviceName作为域名，监听的端口作为端口发送请求即可，比如product服务请求order服务对应地址为 order-svc:28099：
+![[Pasted image 20240718233855.png]]
+
+#### 存储与配置
+* Volume：即数据卷，用于共享Pod中容器使用的数据，用于数据的持久化，比如数据库数据。
+* CSI：Container Storage Interface，是k8s、mesos、docker等联合制定的一个行业标准接口规范，旨在将任意存储系统暴露给容器化应用程序（便于第三方插件集成）。CSI声明了Volume Plugin必须实现的接口。
+
+#### 特殊类型配置
+* ConfigMap：ConfigMap 是一种 API 对象，用来将非机密性的数据保存到键值对中。使用时，Pod 可以将其用作环境变量、命令行参数或者存储卷中的配置文件。ConfigMap可以简单理解为一个配置中心。ConfigMap 并不提供保密或者加密功能。
+* Secret：作用与ConfigMap相同，它解决了密码、token、密钥等敏感数据的配置问题。使用 Secret 意味着你不需要在应用程序代码中包含机密数据。
+* DownwardAPI：用于让Pod里运行的容器可以直接获取到这个Pod对象本身的一些信息，它提供了两种方式：
+	* 环境变量：用于单个变量，可以将Pod信息和容器信息直接注入容器内部。
+	* Volume挂载：将Pod信息生成为文件，直接挂载到容器内部去。
+
+#### 权限相关
+* Role：一组权限的集合，例如包含列出Pod权限及列出Deployment权限，与ClusterRole不同的是，Role仅用于给某个Namespcae中的资源进行鉴权（粒度为命名空间级，比ClusterRole小）。
+* RoleBinding：作用与ClusterRoleBinding相同，只不过作用在命名空间上。
