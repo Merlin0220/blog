@@ -280,3 +280,5 @@ docker load -i calico-kube-controllers.tar
 ```
 6. 调用 docker images命令，查看镜像是否加载成功：
 ![[Pasted image 20240714212052.png]]
+#### 节点重新回到了not ready状态
+如果使用 kubectl get nodes命令，发现原先命名的k8s-master等全部被替换为了ip，并且node均为not ready状态，那么需要重新执行从kubeadm init开始的命令（注意提前kubeadm reset一下）。包括calico的创建。
